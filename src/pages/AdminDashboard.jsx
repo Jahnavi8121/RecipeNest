@@ -12,6 +12,11 @@ function AdminDashboard({ onLogout }) {
     JSON.parse(localStorage.getItem("recipeUsers") || "[]")
   );
 
+  // New: Pending recipe submissions
+  const [pendingRecipes, setPendingRecipes] = useState(() =>
+    JSON.parse(localStorage.getItem("pendingRecipes") || "[]")
+  );
+
   const [activeTab, setActiveTab] = useState("recipes");
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState("");
@@ -30,6 +35,35 @@ function AdminDashboard({ onLogout }) {
   function saveRecipes(updatedRecipes) {
     setRecipes(updatedRecipes);
     localStorage.setItem("adminRecipes", JSON.stringify(updatedRecipes));
+  }
+
+  // New: Save pending submissions
+  function savePending(updatedPending) {
+    setPendingRecipes(updatedPending);
+    localStorage.setItem("pendingRecipes", JSON.stringify(updatedPending));
+  }
+
+  // New: Approve a submitted recipe
+  function approveRecipe(recipe) {
+    const approvedRecipe = {
+      ...recipe,
+      id: Date.now(),
+      servings: Number(recipe.servings),
+    };
+
+    saveRecipes([...recipes, approvedRecipe]);
+    savePending(pendingRecipes.filter((r) => r.id !== recipe.id));
+    setMessage(`${recipe.name} approved successfully!`);
+  }
+
+  // New: Reject a submitted recipe
+  function rejectRecipe(id) {
+    if (!window.confirm("Are you sure you want to reject this recipe?")) {
+      return;
+    }
+
+    savePending(pendingRecipes.filter((r) => r.id !== id));
+    setMessage("Recipe rejected.");
   }
 
   function handleChange(e) {
@@ -90,8 +124,7 @@ function AdminDashboard({ onLogout }) {
       return;
     }
 
-    const updatedRecipes = recipes.filter((r) => r.id !== id);
-    saveRecipes(updatedRecipes);
+    saveRecipes(recipes.filter((r) => r.id !== id));
     setMessage("Recipe deleted successfully!");
   }
 
@@ -123,7 +156,7 @@ function AdminDashboard({ onLogout }) {
         <div className="admin-welcome">
           <span className="admin-tag">ADMINISTRATION</span>
           <h1>Dashboard</h1>
-          <p>Manage your recipes and registered users.</p>
+          <p>Manage recipes, users and community submissions.</p>
         </div>
 
         {/* Statistics */}
@@ -138,6 +171,12 @@ function AdminDashboard({ onLogout }) {
             <span>👥</span>
             <p>Registered users</p>
             <h2>{users.length}</h2>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>📩</span>
+            <p>Pending approvals</p>
+            <h2>{pendingRecipes.length}</h2>
           </div>
         </div>
 
@@ -162,6 +201,16 @@ function AdminDashboard({ onLogout }) {
             }}
           >
             + Add Recipe
+          </button>
+
+          <button
+            className={activeTab === "approvals" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("approvals");
+              setMessage("");
+            }}
+          >
+            Pending Approvals ({pendingRecipes.length})
           </button>
 
           <button
@@ -217,27 +266,17 @@ function AdminDashboard({ onLogout }) {
           </div>
         )}
 
-        {/* Recipe form */}
+        {/* Add / Edit recipe */}
         {activeTab === "form" && (
           <div className="admin-content">
             <h2>{editingId ? "Edit recipe" : "Add a new recipe"}</h2>
 
             <form className="admin-form" onSubmit={handleSubmit}>
               <label>Recipe name</label>
-              <input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Recipe name"
-                required
-              />
+              <input name="name" value={form.name} onChange={handleChange} required />
 
               <label>Category</label>
-              <select
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-              >
+              <select name="category" value={form.category} onChange={handleChange}>
                 <option>Breakfast</option>
                 <option>Main Course</option>
                 <option>Lunch</option>
@@ -249,76 +288,33 @@ function AdminDashboard({ onLogout }) {
               <div className="admin-form-row">
                 <div>
                   <label>Cooking time</label>
-                  <input
-                    name="time"
-                    value={form.time}
-                    onChange={handleChange}
-                    placeholder="30 min"
-                    required
-                  />
+                  <input name="time" value={form.time} onChange={handleChange} placeholder="30 min" required />
                 </div>
 
                 <div>
                   <label>Servings</label>
-                  <input
-                    name="servings"
-                    type="number"
-                    min="1"
-                    value={form.servings}
-                    onChange={handleChange}
-                    required
-                  />
+                  <input name="servings" type="number" min="1" value={form.servings} onChange={handleChange} required />
                 </div>
               </div>
 
               <label>Food image URL</label>
-              <input
-                name="image"
-                value={form.image}
-                onChange={handleChange}
-                placeholder="https://example.com/food.jpg"
-                required
-              />
+              <input name="image" value={form.image} onChange={handleChange} required />
 
               <label>Description</label>
-              <textarea
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-                placeholder="Describe the recipe..."
-                required
-              />
+              <textarea name="description" value={form.description} onChange={handleChange} required />
 
               <label>Ingredients (one per line)</label>
-              <textarea
-                name="ingredients"
-                value={form.ingredients}
-                onChange={handleChange}
-                placeholder={"2 tomatoes\n1 onion\n1 tsp salt"}
-                rows="5"
-                required
-              />
+              <textarea name="ingredients" value={form.ingredients} onChange={handleChange} rows="5" required />
 
               <label>Instructions (one step per line)</label>
-              <textarea
-                name="instructions"
-                value={form.instructions}
-                onChange={handleChange}
-                placeholder={"Chop the vegetables.\nHeat the pan.\nCook and serve."}
-                rows="6"
-                required
-              />
+              <textarea name="instructions" value={form.instructions} onChange={handleChange} rows="6" required />
 
               <div className="admin-form-buttons">
                 <button className="admin-save-btn" type="submit">
                   {editingId ? "Update recipe" : "Add recipe"}
                 </button>
 
-                <button
-                  className="admin-cancel-btn"
-                  type="button"
-                  onClick={resetForm}
-                >
+                <button className="admin-cancel-btn" type="button" onClick={resetForm}>
                   Clear
                 </button>
               </div>
@@ -326,7 +322,52 @@ function AdminDashboard({ onLogout }) {
           </div>
         )}
 
-        {/* User list */}
+        {/* New: Pending approvals */}
+        {activeTab === "approvals" && (
+          <div className="admin-content">
+            <h2>Community recipe submissions</h2>
+            <p>Review recipes submitted by users before publishing them.</p>
+
+            {pendingRecipes.length === 0 ? (
+              <div className="no-results">
+                <h3>All caught up!</h3>
+                <p>There are no recipes waiting for approval.</p>
+              </div>
+            ) : (
+              <div className="admin-recipe-list">
+                {pendingRecipes.map((recipe) => (
+                  <div className="admin-recipe-row" key={recipe.id}>
+                    <img src={recipe.image} alt={recipe.name} />
+
+                    <div className="admin-recipe-info">
+                      <h3>{recipe.name}</h3>
+                      <p>{recipe.category} · {recipe.time}</p>
+                      <p>Submitted by: {recipe.submittedBy || "RecipeNest user"}</p>
+                    </div>
+
+                    <div className="admin-actions">
+                      <button
+                        className="edit-btn"
+                        onClick={() => approveRecipe(recipe)}
+                      >
+                        Approve
+                      </button>
+
+                      <button
+                        className="delete-btn"
+                        onClick={() => rejectRecipe(recipe.id)}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Registered users */}
         {activeTab === "users" && (
           <div className="admin-content">
             <h2>Registered users</h2>
@@ -357,4 +398,3 @@ function AdminDashboard({ onLogout }) {
 }
 
 export default AdminDashboard;
-
